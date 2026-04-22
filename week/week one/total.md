@@ -82,3 +82,5 @@ pip install torch torchvision
 源码见scripts/mnist_train.py
 
 笔记见：node/Module.md
+
+拆分了scripts/mnist_train.py => src/（详见src目录）
