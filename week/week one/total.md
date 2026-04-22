@@ -64,4 +64,21 @@ Q2: The necessary bits to build these optional modules were not found: _dbm To f
 A2: apt install -y libgdbm-dev libgdbm-compat-dev
 
 
+Q3: 更新驱动后，在wsl上跑nvidia-smi会core dump
+
+A3: wsl --update更新wsl即可
+
 ```
+
+```
+安装一些依赖
+pip install torch torchvision 
+```
+
+# day2
+
+#### 执行一个MNIST作为样例，理解训练
+
+源码见scripts/mnist_train.py
+
+笔记见：node/Module.md
