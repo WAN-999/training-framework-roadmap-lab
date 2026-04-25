@@ -81,6 +81,83 @@ forward: Callable[..., Any] = _forward_unimplemented
 
 ```
 
+### state-dict机制
+
+#### state-dict 是什么
+
+#### save_state_dict
 
 
+```python
+def _save_to_state_dict(self, destination, prefix, keep_vars) -> None:
+    for name, param in self._parameters.items():   // 保存parameter
+        if param is not None:
+            destination[prefix + name] = param if keep_vars else param.detach()   // 丢失梯度
+    for name, buf in self._buffers.items(): // 保存buffer（不包括non_persistent_buffer）
+        if buf is not None and name not in self._non_persistent_buffers_set:
+            destination[prefix + name] = buf if keep_vars else buf.detach()
+    extra_state_key = prefix + _EXTRA_STATE_KEY_SUFFIX
+    if (
+        getattr(self.__class__, "get_extra_state", Module.get_extra_state)
+        is not Module.get_extra_state
+    ):
+        destination[extra_state_key] = self.get_extra_state()
+```
 
+所以state_dict只保存parameter和buffer的信息，且会丢失梯度
+
+Q：为什么不保存non-persistent-buffer，non-persistent-buffer一般是什么，和buffer有什么区别？
+
+A：一般是保存计算的中间结果、推理缓存（KVcache等），所以不需要保存
+
+Q：buffer vs parameter
+
+A：parameter：模型参数，可学习的参数；buffer：不可学习的参数（冻结的参数 != buffer）
+
+#### state-dict函数
+
+```python
+def state_dict(self, *args, destination=None, prefix="", keep_vars=False):
+
+    if destination is None:
+        destination = OrderedDict()
+        # pyrefly: ignore [missing-attribute]
+        destination._metadata = OrderedDict()
+
+    # 保存每层的版本信息
+    local_metadata = dict(version=self._version)
+    if hasattr(destination, "_metadata"):
+        destination._metadata[prefix[:-1]] = local_metadata
+
+    # hook调用
+    for hook in self._state_dict_pre_hooks.values():
+        hook(self, prefix, keep_vars)
+    # 保存当前module的parameter和buffer
+    self._save_to_state_dict(destination, prefix, keep_vars)
+    for name, module in self._modules.items():
+        if module is not None:
+            # 递归保存子module，全部存在destination里，用名字区分
+            module.state_dict(
+                destination=destination,
+                prefix=prefix + name + ".",
+                keep_vars=keep_vars,
+            )
+    
+    # hook调用
+    for hook in self._state_dict_hooks.values():
+        hook_result = hook(self, destination, prefix, local_metadata)
+        if not getattr(hook, "_from_public_api", False):
+            if hook_result is not None:
+                destination = hook_result
+        else:
+            if hook_result is not None:
+                raise RuntimeError("state_dict post-hook must return None")
+    return destination
+```
+
+所以state-dict直接读取了所有的parameter和buffer。
+
+#### load_state_dict
+
+
+#### _load_from_state_dict
